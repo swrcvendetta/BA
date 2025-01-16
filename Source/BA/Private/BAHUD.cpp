@@ -20,6 +20,7 @@
 #include "Editor/EditorEngine.h"
 #include "IAssetViewport.h"
 #endif
+#include <Kismet/GameplayStatics.h>
 
 
 void ABAHUD::DrawHUD()
@@ -61,9 +62,13 @@ void ABAHUD::DrawHUD()
     if (!_World)
         return;
 
+    _World->GetGameViewport()->SetShowStats(false);
+
     const FStatUnitData* StatData = _World->GetGameViewport()->GetStatUnitData();
     if (!StatData)
         return;
+
+    _World->GetGameViewport()->SetShowStats(false);
 
     // Record the current frame's stats
     FFrameStatData FrameData;
@@ -107,7 +112,13 @@ void ABAHUD::StartRecording()
     RecordedStats.Empty();
     CurrentFrameID = 0;
     _World = GetWorld();
+
+    if (_World)
+        _World->GetGameViewport()->SetShowStats(false);
+
     CurrentSessionName = GenerateSessionName();
+
+    //UGameplayStatics::GetGameInstance(this)->GetEngine()->StartFPSChart(CurrentSessionName, true);
 
     SaveRenderSettingsToFile();
 
@@ -170,6 +181,7 @@ void ABAHUD::StopRecording()
     FrameGrabber->StopCapturingFrames();
     CapturedFrames = FrameGrabber->GetCapturedFrames();
     SetFrameRate(0.0f);
+    //UGameplayStatics::GetGameInstance(this)->GetEngine()->StopFPSChart(GetWorld()->GetMapName());
     SaveStatsToFile();
     // Log CapturedFrames.Num here
     //UE_LOG(LogTemp, Log, TEXT("Captured Frames: %d"), CapturedFrames.Num());
