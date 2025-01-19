@@ -13,6 +13,10 @@
 
 class FFrameGrabber;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnFrameSaved, int32, Current, int32, Max);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingStarted);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingStopped);
+
 /**
  * 
  */
@@ -24,6 +28,16 @@ class BA_API ABAHUD : public AHUD
 	void DrawHUD() override;
 
 public:
+
+    // The multicast event
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnFrameSaved OnFrameSaved;
+
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnRecordingStarted OnRecordingStarted;
+
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnRecordingStopped OnRecordingStopped;
 
 	UFUNCTION(BlueprintCallable, Category = "Measuring")
 	bool RecordStats();
@@ -37,19 +51,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Measuring")
     void SetFrameRate(float FrameRate);
 
-
-
-    UFUNCTION(BlueprintCallable)
-    bool StartFrameGrab();
-
-    UFUNCTION(BlueprintCallable)
-    void StopFrameGrab();
-
 protected:
 
 	virtual void BeginPlay() override;
 
     virtual void BeginDestroy() override;
+
+    virtual void ReleaseFrameGrabber();
 
 private:
 
@@ -94,4 +102,15 @@ private:
     TArray<FCapturedFrameData> CapturedFrames;
 
     void SchreibDenScheis();
+
+    bool bIsSavingFrames = false;
+    int32 SavedFrameIndex = 0;
+
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring")
+    float MaxSaveFrameDelay = 0.5f;
+
+private:
+
+    float currentDelay = 0.0f;
 };

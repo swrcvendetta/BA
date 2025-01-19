@@ -56,6 +56,54 @@ void ABAHUD::DrawHUD()
 
     */
 
+    if (bIsSavingFrames && SavedFrameIndex < CapturedFrames.Num())
+    {
+        currentDelay += _World->GetDeltaSeconds();
+        if (currentDelay > MaxSaveFrameDelay)
+        {
+            FString SessionFolderPath = FPaths::ProjectDir() + CurrentSessionName;
+
+            const FCapturedFrameData& FrameData = CapturedFrames[SavedFrameIndex];
+
+            // Generate a unique filename for each frame
+            FString FileName = FString::Printf(TEXT("Frame_%d.png"), SavedFrameIndex);
+            FString FilePath = SessionFolderPath + TEXT("/") + FileName;
+
+            // Convert raw pixel data to an image
+            TArray64<uint8> PNGData; // Use uint8 for image data
+
+            // Create FImageView using a pointer to the raw pixel data (FColor) and the dimensions
+            FImageView ImageView(FrameData.ColorBuffer.GetData(), FrameData.BufferSize.X, FrameData.BufferSize.Y);
+
+            // Compress the image to PNG
+            if (FImageUtils::CompressImage(PNGData, TEXT("png"), ImageView))
+            {
+                // Write the PNG data to a file
+                if (FFileHelper::SaveArrayToFile(PNGData, *FilePath))
+                {
+                    UE_LOG(LogTemp, Log, TEXT("Saved frame %d as PNG at %s"), SavedFrameIndex, *FilePath);
+                    OnFrameSaved.Broadcast(SavedFrameIndex, CapturedFrames.Num());
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Failed to save frame %d as PNG."), SavedFrameIndex);
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Failed to compress frame %d to PNG."), SavedFrameIndex);
+            }
+            SavedFrameIndex += 1;
+            currentDelay = 0.0f;
+        }
+
+        if (SavedFrameIndex >= CapturedFrames.Num())
+        {
+            SavedFrameIndex = 0;
+            bIsSavingFrames = false;
+        }
+    }
+
     if (!bIsRecording)
         return;
 
@@ -173,6 +221,7 @@ void ABAHUD::StartRecording()
     // Capture Start
     FrameGrabber = MakeShareable(new FFrameGrabber(SceneViewport.ToSharedRef(), SceneViewport->GetSize()));
     FrameGrabber->StartCapturingFrames();
+    OnRecordingStarted.Broadcast();
 }
 
 void ABAHUD::StopRecording()
@@ -186,6 +235,7 @@ void ABAHUD::StopRecording()
     // Log CapturedFrames.Num here
     //UE_LOG(LogTemp, Log, TEXT("Captured Frames: %d"), CapturedFrames.Num());
     SchreibDenScheis();
+    OnRecordingStopped.Broadcast();
 }
 
 void ABAHUD::SetFrameRate(float FrameRate)
@@ -199,15 +249,6 @@ void ABAHUD::SetFrameRate(float FrameRate)
     }
 }
 
-bool ABAHUD::StartFrameGrab()
-{
-    return false;
-}
-
-void ABAHUD::StopFrameGrab()
-{
-}
-
 void ABAHUD::BeginPlay()
 {
     Super::BeginPlay();
@@ -219,6 +260,17 @@ void ABAHUD::BeginDestroy()
 {
     Super::BeginDestroy();
 
+    ReleaseFrameGrabber();
+}
+
+void ABAHUD::ReleaseFrameGrabber()
+{
+    if (FrameGrabber.IsValid())
+    {
+        //FrameGrabber->StopCapturingFrames();
+        FrameGrabber->Shutdown();
+        FrameGrabber.Reset();
+    }
 }
 
 void ABAHUD::SaveStatsToFile()
@@ -348,8 +400,11 @@ void ABAHUD::SchreibDenScheis()
         return;
     }
 
+    bIsSavingFrames = true;
+
     // Print the number of captured frames in the log
-    UE_LOG(LogTemp, Log, TEXT("Captured Frames: %d"), CapturedFrames.Num());
+    /* 
+    //UE_LOG(LogTemp, Log, TEXT("Captured Frames: %d"), CapturedFrames.Num());
 
     // Get the session folder path
     FString SessionFolderPath = FPaths::ProjectDir() + CurrentSessionName;
@@ -401,6 +456,7 @@ void ABAHUD::SchreibDenScheis()
             UE_LOG(LogTemp, Warning, TEXT("Failed to compress frame %d to PNG."), FrameIndex);
         }
     }
+    */
 }
 
 
