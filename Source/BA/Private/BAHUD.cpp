@@ -123,6 +123,7 @@ void ABAHUD::DrawHUD()
     FrameData.FrameID = CurrentFrameID;
     FrameData.DeltaTime = _World->GetDeltaSeconds();
     FrameData.GameThreadTime = StatData->GameThreadTime;
+    FrameData.RHITTime = StatData->RHITTime;
     FrameData.RenderThreadTime = StatData->RenderThreadTime;
     FrameData.GPUFrameTime = StatData->GPUFrameTime[0];
     RecordedStats.Add(FrameData);
@@ -153,7 +154,7 @@ bool ABAHUD::RecordStats()
 
 void ABAHUD::StartRecording()
 {
-    SetFrameRate(30.0f);
+    SetFrameRate(TargetFrameRate);
 
     bIsRecording = true;
 
@@ -238,6 +239,14 @@ void ABAHUD::StopRecording()
     OnRecordingStopped.Broadcast();
 }
 
+void ABAHUD::SetTargetFrameRate(float FrameRate)
+{
+    if (FrameRate <= 0 || bIsRecording)
+        return;
+
+    TargetFrameRate = FrameRate;
+}
+
 void ABAHUD::SetFrameRate(float FrameRate)
 {
     // reset FPS
@@ -249,11 +258,19 @@ void ABAHUD::SetFrameRate(float FrameRate)
     }
 }
 
+void ABAHUD::SetMaxFrameAmount(int32 FrameAmount)
+{
+    if (FrameAmount <= 0 || bIsRecording)
+        return;
+
+    MaxFrameAmount = FrameAmount;
+}
+
 void ABAHUD::BeginPlay()
 {
     Super::BeginPlay();
 
-    SetupRenderTarget();
+    //SetupRenderTarget();
 }
 
 void ABAHUD::BeginDestroy()
@@ -277,16 +294,17 @@ void ABAHUD::SaveStatsToFile()
 {
     FString SavePath = FPaths::ProjectDir() + CurrentSessionName + TEXT("_Stats.csv");
 
-    FString OutputString = TEXT("FrameID,DeltaTime,FrameTime,GameThreadTime,RenderThreadTime,GPUFrameTime\n");
+    FString OutputString = TEXT("FrameID,DeltaTime,FrameTime,GameThreadTime,RHITTime,RenderThreadTime,GPUFrameTime\n");
 
     for (const FFrameStatData& Data : RecordedStats)
     {
         OutputString += FString::Printf(
-            TEXT("%d,%.6f,%.6f,%.6f,%.6f,%.6f\n"),
+            TEXT("%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n"),
             Data.FrameID,
             Data.DeltaTime,
             Data.FrameTime,
             Data.GameThreadTime,
+            Data.RHITTime,
             Data.RenderThreadTime,
             Data.GPUFrameTime
         );
@@ -364,7 +382,8 @@ void ABAHUD::SaveRenderSettingsToFile()
 FString ABAHUD::GenerateSessionName() const
 {
     const FDateTime Now = FDateTime::Now();
-    return Now.ToString(TEXT("%Y%m%d_%H%M%S"));
+    //return Now.ToString(TEXT("%Y%m%d_%H%M%S"));
+    return Now.ToString(TEXT("%Y%m%d_%H%M%S_%d", TargetFrameRate));
 }
 
 void ABAHUD::SetupRenderTarget()

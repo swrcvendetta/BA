@@ -49,7 +49,13 @@ public:
     void StopRecording();
 
     UFUNCTION(BlueprintCallable, Category = "Measuring")
+    void SetTargetFrameRate(float FrameRate);
+
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
     void SetFrameRate(float FrameRate);
+
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
+    void SetMaxFrameAmount(int32 FrameAmount);
 
 protected:
 
@@ -72,6 +78,7 @@ private:
         float DeltaTime;
         float FrameTime;
         float GameThreadTime;
+        float RHITTime;
         float RenderThreadTime;
         float GPUFrameTime;
     };
@@ -85,6 +92,8 @@ private:
     void SaveRenderSettingsToFile();
 
     FString GenerateSessionName() const;
+
+    float TargetFrameRate = 30.0f;
 
     int32 MaxFrameAmount = 300;
     int32 ResolutionWidth = 1920;
