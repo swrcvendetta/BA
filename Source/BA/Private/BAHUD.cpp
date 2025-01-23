@@ -4,7 +4,6 @@
 #include "BAHUD.h"
 #include "Misc/FileHelper.h"
 #include "Engine/Engine.h"
-#include "Editor.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/RendererSettings.h"
 #include "Math/IntPoint.h"
@@ -154,7 +153,7 @@ bool ABAHUD::RecordStats()
 
 void ABAHUD::StartRecording()
 {
-    SetFrameRate(TargetFrameRate);
+    //SetFrameRate(TargetFrameRate);
 
     bIsRecording = true;
 
@@ -230,7 +229,7 @@ void ABAHUD::StopRecording()
     bIsRecording = false;
     FrameGrabber->StopCapturingFrames();
     CapturedFrames = FrameGrabber->GetCapturedFrames();
-    SetFrameRate(0.0f);
+    //SetFrameRate(0.0f);
     //UGameplayStatics::GetGameInstance(this)->GetEngine()->StopFPSChart(GetWorld()->GetMapName());
     SaveStatsToFile();
     // Log CapturedFrames.Num here
@@ -270,7 +269,6 @@ void ABAHUD::BeginPlay()
 {
     Super::BeginPlay();
 
-    //SetupRenderTarget();
 }
 
 void ABAHUD::BeginDestroy()
@@ -382,32 +380,7 @@ void ABAHUD::SaveRenderSettingsToFile()
 FString ABAHUD::GenerateSessionName() const
 {
     const FDateTime Now = FDateTime::Now();
-    //return Now.ToString(TEXT("%Y%m%d_%H%M%S"));
-    return Now.ToString(TEXT("%Y%m%d_%H%M%S_%d", TargetFrameRate));
-}
-
-void ABAHUD::SetupRenderTarget()
-{
-    if (!RenderTarget)
-    {
-        RenderTarget = NewObject<UTextureRenderTarget2D>();
-        RenderTarget->InitAutoFormat(ResolutionWidth, ResolutionHeight);
-        RenderTarget->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA8;
-        RenderTarget->bAutoGenerateMips = false;
-        RenderTarget->AddToRoot();
-    }
-
-    if (!SceneCaptureComponent)
-    {
-        // Attach a Scene Capture Component
-        SceneCaptureComponent = NewObject<USceneCaptureComponent2D>(this);
-        SceneCaptureComponent->TextureTarget = RenderTarget;
-        SceneCaptureComponent->CaptureSource = SCS_FinalColorLDR;
-        SceneCaptureComponent->ShowFlags.SetPostProcessing(true); // Enable post-processing
-        SceneCaptureComponent->ShowFlags.SetAntiAliasing(true);   // Enable AA
-        SceneCaptureComponent->AttachToComponent(GetOwner()->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
-        SceneCaptureComponent->RegisterComponent();
-    }
+    return Now.ToString(TEXT("%Y%m%d_%H%M%S"));
 }
 
 void ABAHUD::SchreibDenScheis()

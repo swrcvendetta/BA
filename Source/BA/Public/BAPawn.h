@@ -1,10 +1,19 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
+/**
+ * 
+ * Check documentation at:
+ * https://dev.epicgames.com/documentation/en-us/unreal-engine/scalability-reference-for-unreal-engine
+ * 
+ */
+
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
 #include "BAPawn.generated.h"
+
+
 
 UCLASS()
 class BA_API ABAPawn : public APawn
@@ -25,5 +34,4 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
 };

@@ -96,16 +96,6 @@ private:
     float TargetFrameRate = 30.0f;
 
     int32 MaxFrameAmount = 300;
-    int32 ResolutionWidth = 1920;
-    int32 ResolutionHeight = 1080;
-
-    UPROPERTY()
-    UTextureRenderTarget2D* RenderTarget; // Render target for capturing frames
-
-    UPROPERTY()
-    USceneCaptureComponent2D* SceneCaptureComponent;
-
-    void SetupRenderTarget();
 
     TSharedPtr<FFrameGrabber> FrameGrabber;
     TArray<FCapturedFrameData> CapturedFrames;

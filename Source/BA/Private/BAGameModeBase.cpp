@@ -1,150 +1,98 @@
 #include "BAGameModeBase.h"
-#include "Engine/Engine.h"
-#include "HAL/PlatformMemory.h"
-#include <windows.h>
-//#include "RHI.h"
-#include <psapi.h>
-
-
-float ABAGameModeBase::GetRamUsage() const
-{
-    PROCESS_MEMORY_COUNTERS_EX pmc;
-    if (GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc)))
-    {
-        SIZE_T physMemUsedByMe = pmc.WorkingSetSize;
-        MEMORYSTATUSEX statex;
-        statex.dwLength = sizeof(statex);
-
-        if (GlobalMemoryStatusEx(&statex))
-        {
-            SIZE_T totalPhysicalMem = statex.ullTotalPhys;
-            return static_cast<float>(physMemUsedByMe) / static_cast<float>(totalPhysicalMem) * 100.0f;
-        }
-    }
-    return 0.0f;
-}
-
-float ABAGameModeBase::GetCpuUsage() const
-{
-    /*
-    static ULONGLONG lastTime = 0;
-    static ULONGLONG lastSystemTime = 0;
-
-    FILETIME now, creationTime, exitTime, kernelTime, userTime;
-    GetSystemTimeAsFileTime(&now);
-
-    if (!GetProcessTimes(GetCurrentProcess(), &creationTime, &exitTime, &kernelTime, &userTime))
-        return 0.0f;
-
-    ULONGLONG systemTime = (reinterpret_cast<ULARGE_INTEGER*>(&kernelTime)->QuadPart +
-        reinterpret_cast<ULARGE_INTEGER*>(&userTime)->QuadPart);
-
-    if (lastTime == 0)
-    {
-        lastTime = reinterpret_cast<ULARGE_INTEGER*>(&now)->QuadPart;
-        lastSystemTime = systemTime;
-        return 0.0f;
-    }
-
-    ULONGLONG nowTime = reinterpret_cast<ULARGE_INTEGER*>(&now)->QuadPart;
-    float cpuUsage = (static_cast<float>(systemTime - lastSystemTime) / (nowTime - lastTime));// *100.0f;
-
-    lastTime = nowTime;
-    lastSystemTime = systemTime;
-
-    return cpuUsage;
-    
-    // one or the other but not both ^ v
-
-    static ULONGLONG lastTime = 0;
-    static ULONGLONG lastSystemTime = 0;
-    static ULONGLONG totalTime = 0;
-    static ULONGLONG totalSystemTime = 0;
-    static int frameCount = 0;
-
-    FILETIME now, creationTime, exitTime, kernelTime, userTime;
-    GetSystemTimeAsFileTime(&now);
-
-    if (!GetProcessTimes(GetCurrentProcess(), &creationTime, &exitTime, &kernelTime, &userTime))
-        return 0.0f;
-
-    ULONGLONG systemTime = (reinterpret_cast<ULARGE_INTEGER*>(&kernelTime)->QuadPart +
-        reinterpret_cast<ULARGE_INTEGER*>(&userTime)->QuadPart);
-
-    if (lastTime == 0)
-    {
-        lastTime = reinterpret_cast<ULARGE_INTEGER*>(&now)->QuadPart;
-        lastSystemTime = systemTime;
-        return 0.0f;
-    }
-
-    ULONGLONG nowTime = reinterpret_cast<ULARGE_INTEGER*>(&now)->QuadPart;
-
-    // Akkumulieren der Zeiten
-    totalTime += nowTime - lastTime;
-    totalSystemTime += systemTime - lastSystemTime;
-    frameCount++;
-
-    // Berechne den durchschnittlichen CPU-Verbrauch über mehrere Frames
-    if (frameCount >= 60) // Beispiel: Alle 60 Frames
-    {
-        float cpuUsage = (static_cast<float>(totalSystemTime) / totalTime) * 100.0f; // Multiplizieren mit 100 für Prozent
-        // Zurücksetzen nach der Berechnung
-        totalTime = 0;
-        totalSystemTime = 0;
-        frameCount = 0;
-        return cpuUsage;
-    }
-
-    // Rückgabe eines vorläufigen Werts ohne Berechnung
-    lastTime = nowTime;
-    lastSystemTime = systemTime;
-    return 0.0f;
-    */
-    return 0.0f;
-}
-
-float ABAGameModeBase::GetGpuUsage() const
-{
-    // GPU-Auslastung ist plattformspezifisch. Hier ein Platzhalter:
-    // Erfordert APIs wie NVML für NVIDIA oder entsprechende Bibliotheken für andere GPUs.
-    /*
-     * nvml.h
-     *
-    nvmlInit();
-    nvmlDevice_t device;
-    nvmlDeviceGetHandleByIndex(0, &device);
-
-    unsigned int gpuUsage = 0;
-    nvmlUtilization_t utilization;
-    nvmlDeviceGetUtilizationRates(device, &utilization);
-    gpuUsage = utilization.gpu;
-
-    nvmlShutdown();
-
-    return static_cast<float>(gpuUsage);
-    */
-
-    float gputime = -1.0f;
-
-    UWorld* w = GetWorld();
-
-    if (w)
-    {
-        gputime = *(w->GetGameViewport()->GetStatUnitData()->GPUFrameTime);
-    }
-
-    gputime = *(GetWorld()->GetGameViewport()->GetStatUnitData()->GPUFrameTime);
-
-    return gputime;
-}
 
 void ABAGameModeBase::BeginPlay()
 {
-    //InitialMemoryStats = FPlatformMemory::GetStats();
+    Super::BeginPlay();
+}
 
-    if (GEngine)
+void ABAGameModeBase::LoadScalabilitySettings(const FString& FilePath)
+{
+    FString FileContent;
+
+    // Attempt to load the file
+    if (!FFileHelper::LoadFileToString(FileContent, *FilePath))
     {
-        //InitialStatUnitData = GEngine->GetStatUn
+        FString ErrorMessage = FString::Printf(TEXT("Failed to load file: %s"), *FilePath);
+        UE_LOG(LogTemp, Error, TEXT("%s"), *ErrorMessage);
+        OnSettingsFailed.Broadcast(ErrorMessage);
+        return;
     }
+
+    TArray<FString> Lines;
+    FileContent.ParseIntoArrayLines(Lines);
+
+    InternalCategories.Empty();
+    TMap<FString, FCategory> CategoryMap; // Maps category titles to FCategory objects
+
+    FString CurrentCategoryTitle;
+    int32 CurrentQualityLevel = -1;
+
+    for (const FString& Line : Lines)
+    {
+        FString TrimmedLine = Line.TrimStartAndEnd();
+
+        // Ignore comments
+        if (TrimmedLine.StartsWith(";") || TrimmedLine.IsEmpty())
+        {
+            continue;
+        }
+
+        // Check for category titles like [Category@Quality]
+        if (TrimmedLine.StartsWith("[") && TrimmedLine.EndsWith("]"))
+        {
+            FString FullTitle = TrimmedLine.Mid(1, TrimmedLine.Len() - 2); // Remove brackets
+            FString QualityLevelStr;
+
+            // Split into category and quality level if it matches "Category@Quality"
+            if (FullTitle.Split(TEXT("@"), &CurrentCategoryTitle, &QualityLevelStr))
+            {
+                // Convert quality level to integer
+                if (QualityLevelStr.Equals("Cine", ESearchCase::IgnoreCase)) // Cine is a special case
+                {
+                    CurrentQualityLevel = 4; // Treat "Cine" as level 4 (adjustable)
+                }
+                else
+                {
+                    CurrentQualityLevel = FCString::Atoi(*QualityLevelStr);
+                }
+
+                // Get or create the category
+                FCategory& Category = CategoryMap.FindOrAdd(CurrentCategoryTitle);
+                Category.Title = CurrentCategoryTitle;
+
+                // Ensure the Qualities array is large enough
+                while (Category.Qualities.Num() <= CurrentQualityLevel)
+                {
+                    Category.Qualities.Add(FQuality());
+                }
+
+                continue;
+            }
+        }
+
+        // Parse key-value pairs
+        FString Key, Value;
+        if (TrimmedLine.Split(TEXT("="), &Key, &Value))
+        {
+            if (!CurrentCategoryTitle.IsEmpty() && CurrentQualityLevel >= 0)
+            {
+                // Add the setting to the current quality level
+                FSetting Setting;
+                Setting.Key = Key.TrimStartAndEnd();
+                Setting.Value = Value.TrimStartAndEnd();
+
+                FCategory& Category = CategoryMap[CurrentCategoryTitle];
+                Category.Qualities[CurrentQualityLevel].Settings.Add(Setting);
+            }
+        }
+    }
+
+    // Move the map contents to the array
+    for (auto& Pair : CategoryMap)
+    {
+        InternalCategories.Add(Pair.Value);
+    }
+
+    // Broadcast success
+    OnSettingsLoaded.Broadcast(InternalCategories);
 }
