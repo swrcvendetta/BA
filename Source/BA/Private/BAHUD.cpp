@@ -10,6 +10,7 @@
 #include "ImageUtils.h" // For screenshot capture
 #include "GameFramework/GameUserSettings.h"
 #include "HAL/PlatformFilemanager.h"
+#include "ImageUtils.h" // For screenshot capture
 #include "Misc/Paths.h"
 #include "Engine/World.h"
 #include "Kismet/KismetRenderingLibrary.h"
@@ -55,12 +56,15 @@ void ABAHUD::DrawHUD()
 
     */
 
-    if (bIsSavingFrames && SavedFrameIndex < CapturedFrames.Num())
+
+    // for saving
+    
+    if (bIsSavingFrames && SavedFrameIndex < CapturedFrames.Num() && !bSaveAll)
     {
         currentDelay += _World->GetDeltaSeconds();
         if (currentDelay > MaxSaveFrameDelay)
         {
-            FString SessionFolderPath = FPaths::ProjectDir() + CurrentSessionName;
+            FString SessionFolderPath = FPaths::ProjectDir() + CurrentSessionName + prefix;
 
             const FCapturedFrameData& FrameData = CapturedFrames[SavedFrameIndex];
 
@@ -102,6 +106,105 @@ void ABAHUD::DrawHUD()
             bIsSavingFrames = false;
         }
     }
+    
+
+    if (bSaveAll && Settings.Num() > 0 && !bIsSavingFrames)
+    {
+        
+        currentDelay += _World->GetDeltaSeconds();
+        if (currentDelay > MaxSaveFrameDelay)
+        {
+            FString SessionFolderPath = FPaths::ProjectDir() + _currentSessionName;
+
+
+            // Ensure the session folder exists
+            if (!FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*SessionFolderPath))
+            {
+                FPlatformFileManager::Get().GetPlatformFile().CreateDirectoryTree(*SessionFolderPath);
+                UE_LOG(LogTemp, Log, TEXT("Created path %s"), *SessionFolderPath);
+            }
+
+            // Saving masterframe
+            FString MasterFramePath = SessionFolderPath + TEXT("/MasterFrame.png");
+            if (!MasterFrame.IsEmpty())
+            {
+                TArray64<uint8> _PNGData;
+                FImageView ImgView(MasterFrame.GetData(), MasterFrameBuffer.X, MasterFrameBuffer.Y);
+                if (FImageUtils::CompressImage(_PNGData, TEXT("PNG"), ImgView))
+                {
+                    FFileHelper::SaveArrayToFile(_PNGData, *MasterFramePath);
+                    UE_LOG(LogTemp, Log, TEXT("Saved masterframe"));
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Failed to compress masterframe"));
+                }
+            }
+
+            UE_LOG(LogTemp, Log, TEXT("Saving data: %d"), Settings.Num());
+
+            // Iterate over each setting and save the data
+            for (const auto& Setting : Settings)
+            {
+                // Generate a sub-folder with the session name, setting name, and setting value
+                FString SubFolderPath = FString::Printf(TEXT("%s/%s_%s"), *SessionFolderPath, *Setting.Key, *Setting.Value);
+                if (!FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*SubFolderPath))
+                {
+                    FPlatformFileManager::Get().GetPlatformFile().CreateDirectoryTree(*SubFolderPath);
+                    UE_LOG(LogTemp, Log, TEXT("Created sub folder %s"), *SubFolderPath);
+                }
+
+                // Save the frame as an image in the sub-folder
+                FString ImageFilePath = SubFolderPath + TEXT("/Frame.png");
+                if (!Setting.Frame.IsEmpty())
+                {
+                    TArray64<uint8> PNGData;
+                    FImageView ImageView(Setting.Frame.GetData(), _bufferSizeX, _bufferSizeY);
+                    if (FImageUtils::CompressImage(PNGData, TEXT("png"), ImageView))
+                    {
+                        FFileHelper::SaveArrayToFile(PNGData, *ImageFilePath);
+                        UE_LOG(LogTemp, Log, TEXT("Saved frame for setting %s=%s at %s"), *Setting.Key, *Setting.Value, *ImageFilePath);
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("Failed to compress frame for setting %s=%s"), *Setting.Key, *Setting.Value);
+                    }
+                }
+
+                // Save the stat data as a CSV in the sub-folder
+                FString StatFilePath = SubFolderPath + TEXT("/Stats.csv");
+                FString StatOutput = TEXT("FrameID,DeltaTime,FrameTime,GameThreadTime,RHITTime,RenderThreadTime,GPUFrameTime\n");
+                StatOutput += FString::Printf(
+                    TEXT("%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n"),
+                    Setting.FrameStats.FrameID,
+                    Setting.FrameStats.DeltaTime,
+                    Setting.FrameStats.FrameTime,
+                    Setting.FrameStats.GameThreadTime,
+                    Setting.FrameStats.RHITTime,
+                    Setting.FrameStats.RenderThreadTime,
+                    Setting.FrameStats.GPUFrameTime
+                );
+                FFileHelper::SaveStringToFile(StatOutput, *StatFilePath);
+                UE_LOG(LogTemp, Log, TEXT("Saved stats for setting %s=%s at %s"), *Setting.Key, *Setting.Value, *StatFilePath);
+
+                Setting.Frame.IsEmpty();
+            }
+            
+            SavedFrameIndex += 1;
+            currentDelay = 0.0f;
+        }
+
+        if (SavedFrameIndex >= Settings.Num())
+        {
+            SavedFrameIndex = 0;
+            bSaveAll = false;
+            currentSetting.Frame.Empty();
+            Settings.Empty();
+        }
+    }
+
+
+    // for recording
 
     if (!bIsRecording)
         return;
@@ -118,7 +221,7 @@ void ABAHUD::DrawHUD()
     _World->GetGameViewport()->SetShowStats(false);
 
     // Record the current frame's stats
-    FFrameStatData FrameData;
+    FFrameStatData_internal FrameData;
     FrameData.FrameID = CurrentFrameID;
     FrameData.DeltaTime = _World->GetDeltaSeconds();
     FrameData.GameThreadTime = StatData->GameThreadTime;
@@ -127,13 +230,13 @@ void ABAHUD::DrawHUD()
     FrameData.GPUFrameTime = StatData->GPUFrameTime[0];
     RecordedStats.Add(FrameData);
 
-    FrameGrabber->CaptureThisFrame(FFramePayloadPtr());
+    // We always need to record one more frame because stats are from last frame
 
+    FrameGrabber->CaptureThisFrame(FFramePayloadPtr());
     if (CurrentFrameID > MaxFrameAmount)
     {
         StopRecording();
     }
-
     CurrentFrameID++;
 }
 
@@ -168,15 +271,17 @@ void ABAHUD::StartRecording()
 
     //UGameplayStatics::GetGameInstance(this)->GetEngine()->StartFPSChart(CurrentSessionName, true);
 
-    SaveRenderSettingsToFile();
+    //removed for now
+    // SaveRenderSettingsToFile();
 
-    // Create a folder for this session if it doesn't exist
-    FString SessionFolderPath = FPaths::ProjectDir() + CurrentSessionName;
+    /* Create a folder for this session if it doesn't exist
+    FString SessionFolderPath = FPaths::ProjectDir() + CurrentSessionName + prefix;
     if (!FPaths::DirectoryExists(SessionFolderPath))
     {
         IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
         PlatformFile.CreateDirectory(*SessionFolderPath);
     }
+    */
     
     // ---------------------------------------
     
@@ -229,13 +334,48 @@ void ABAHUD::StopRecording()
     bIsRecording = false;
     FrameGrabber->StopCapturingFrames();
     CapturedFrames = FrameGrabber->GetCapturedFrames();
+    if (bCaptureSetting && !bCaptureMasterFrame)
+    {
+        _bufferSizeX = CapturedFrames[0].BufferSize.X;
+        _bufferSizeY = CapturedFrames[0].BufferSize.Y;
+        // Process Frames
+        FFrameStatData_internal last = RecordedStats.Last();
+        FFrameStatData currentStats = {
+            currentStats.FrameID = last.FrameID,
+            currentStats.DeltaTime = last.DeltaTime,
+            currentStats.FrameTime = last.FrameTime,
+            currentStats.GameThreadTime = last.GameThreadTime,
+            currentStats.GPUFrameTime = last.GPUFrameTime,
+            currentStats.RenderThreadTime = last.RenderThreadTime,
+            currentStats.RHITTime = last.RHITTime
+        };
+        currentSetting.FrameStats = currentStats;
+        int32 index = CapturedFrames.Num() - 1;
+        if (CapturedFrames.Num() > 1)
+            index = CapturedFrames.Num() - 2;
+        currentSetting.Frame = CapturedFrames[index].ColorBuffer;
+        Settings.Add(currentSetting);
+        bCaptureSetting = false;
+        OnRecordingStopped.Broadcast();
+    }
+
+    if (bCaptureMasterFrame && !bCaptureSetting)
+    {
+        FIntPoint size = (CapturedFrames[0].BufferSize.X, CapturedFrames[0].BufferSize.Y);
+        MasterFrame = CapturedFrames.Last().ColorBuffer;
+        MasterFrameBuffer = CapturedFrames.Last().BufferSize;
+        bCaptureMasterFrame = false;
+        OnRecordingMasterFrameStopped.Broadcast();
+    }
+
+    // ----------
     //SetFrameRate(0.0f);
     //UGameplayStatics::GetGameInstance(this)->GetEngine()->StopFPSChart(GetWorld()->GetMapName());
-    SaveStatsToFile();
+    //SaveStatsToFile();
     // Log CapturedFrames.Num here
     //UE_LOG(LogTemp, Log, TEXT("Captured Frames: %d"), CapturedFrames.Num());
-    SchreibDenScheis();
-    OnRecordingStopped.Broadcast();
+    //SchreibDenScheis();
+    // -------------
 }
 
 void ABAHUD::SetTargetFrameRate(float FrameRate)
@@ -265,6 +405,50 @@ void ABAHUD::SetMaxFrameAmount(int32 FrameAmount)
     MaxFrameAmount = FrameAmount;
 }
 
+void ABAHUD::SaveAllData()
+{
+    _currentSessionName = GenerateSessionName();
+    bSaveAll = true;
+    // generate a sessionname
+    // use this sessionname as a foldername
+    // for each setting in Settings:
+    //      generate a sub folder with sessionname+settingname+settingvalue
+    //      write frame here
+    //      write statdata her as csv
+}
+
+/*
+TArray<FColor>& ABAHUD::GetFrameAt(int32 Index)
+{
+    // TODO: insert return statement here
+}
+
+FFrameStatData ABAHUD::GetStatDataAt(int32 Index)
+{
+    return FFrameStatData();
+}
+*/
+
+void ABAHUD::RecordSetting(FString Setting, FString Value)
+{
+    bCaptureSetting = true;
+    bCaptureMasterFrame = false;
+    prefix = Setting + TEXT("_") + Value;
+    currentSetting.Key = Setting;
+    currentSetting.Value = Value;
+    //currentSetting.
+    currentSetting.Frame.Empty();
+    //Settings.Empty();
+    StartRecording();
+}
+
+void ABAHUD::RecordMasterFrame()
+{
+    bCaptureSetting = false;
+    bCaptureMasterFrame = true;
+    StartRecording();
+}
+
 void ABAHUD::BeginPlay()
 {
     Super::BeginPlay();
@@ -290,11 +474,11 @@ void ABAHUD::ReleaseFrameGrabber()
 
 void ABAHUD::SaveStatsToFile()
 {
-    FString SavePath = FPaths::ProjectDir() + CurrentSessionName + TEXT("_Stats.csv");
+    FString SavePath = FPaths::ProjectDir() + CurrentSessionName + prefix + TEXT("_Stats.csv");
 
     FString OutputString = TEXT("FrameID,DeltaTime,FrameTime,GameThreadTime,RHITTime,RenderThreadTime,GPUFrameTime\n");
 
-    for (const FFrameStatData& Data : RecordedStats)
+    for (const FFrameStatData_internal& Data : RecordedStats)
     {
         OutputString += FString::Printf(
             TEXT("%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n"),

@@ -9,6 +9,8 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "FrameGrabber.h"
 #include "GameFramework/Actor.h"
+#include "ImageCoreClasses.h"
+#include <BAGameModeBase.h>
 #include "BAHUD.generated.h"
 
 class FFrameGrabber;
@@ -16,6 +18,7 @@ class FFrameGrabber;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnFrameSaved, int32, Current, int32, Max);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingStarted);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingStopped);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingMasterFrameStopped);
 
 /**
  * 
@@ -39,6 +42,9 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Events")
     FOnRecordingStopped OnRecordingStopped;
 
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnRecordingMasterFrameStopped OnRecordingMasterFrameStopped;
+
 	UFUNCTION(BlueprintCallable, Category = "Measuring")
 	bool RecordStats();
 
@@ -57,6 +63,23 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Measuring")
     void SetMaxFrameAmount(int32 FrameAmount);
 
+    UFUNCTION(BlueprintCallable, Category = "Measuing")
+    void SaveAllData();
+
+    /*
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
+    TArray<FColor>& GetFrameAt(int32 Index);
+
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
+    FFrameStatData GetStatDataAt(int32 Index);
+    */
+
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
+    void RecordSetting(FString Setting, FString Value);
+
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
+    void RecordMasterFrame();
+
 protected:
 
 	virtual void BeginPlay() override;
@@ -72,7 +95,7 @@ private:
 	UWorld* _World;
 	
     // Store recorded stats
-    struct FFrameStatData
+    struct FFrameStatData_internal
     {
         int32 FrameID;
         float DeltaTime;
@@ -83,10 +106,11 @@ private:
         float GPUFrameTime;
     };
 
-    TArray<FFrameStatData> RecordedStats;
+    TArray<FFrameStatData_internal> RecordedStats;
     int32 CurrentFrameID = 0;
 
     FString CurrentSessionName;
+    FString prefix;
 
     void SaveStatsToFile();
     void SaveRenderSettingsToFile();
@@ -112,4 +136,18 @@ public:
 private:
 
     float currentDelay = 0.0f;
+
+    TArray<FSetting> Settings;
+    FSetting currentSetting;
+
+    bool bCaptureSetting = false;
+    bool bCaptureMasterFrame = false;
+
+    bool bSaveAll = false;
+    FString _currentSessionName;
+    int32 _bufferSizeX;
+    int32 _bufferSizeY;
+
+    TArray<FColor> MasterFrame;
+    FIntPoint MasterFrameBuffer;
 };

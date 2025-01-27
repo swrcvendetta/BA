@@ -29,7 +29,16 @@ void ABAGameModeBase::LoadScalabilitySettings(const FString& FilePath)
 
     for (const FString& Line : Lines)
     {
-        FString TrimmedLine = Line.TrimStartAndEnd();
+
+        // Remove inline comments
+        int32 CommentIndex;
+        FString TrimmedLine = Line;
+        if (Line.FindChar(';', CommentIndex))
+        {
+            TrimmedLine = Line.Left(CommentIndex);
+        }
+
+        TrimmedLine = TrimmedLine.TrimStartAndEnd();
 
         // Ignore comments
         if (TrimmedLine.StartsWith(";") || TrimmedLine.IsEmpty())

@@ -120,4 +120,18 @@ public:
 	{
 		return InternalCategories;
 	}
+
+	/**
+	 * Enables/disables a category
+	 * Returns true if there was a category with the provided index, else false
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	bool ToggleCategoryAt(int32 Index, bool Value)
+	{
+		if (Index >= InternalCategories.Num())
+			return false;
+
+		InternalCategories[Index].bEnabled = Value;
+		return true;
+	}
 };
