@@ -449,6 +449,11 @@ void ABAHUD::RecordMasterFrame()
     StartRecording();
 }
 
+float ABAHUD::ColorSSIM(TArray<FColor> x, TArray<FColor> y)
+{
+    return ColorSSIM_Internal(x, y);
+}
+
 void ABAHUD::BeginPlay()
 {
     Super::BeginPlay();
@@ -470,6 +475,99 @@ void ABAHUD::ReleaseFrameGrabber()
         FrameGrabber->Shutdown();
         FrameGrabber.Reset();
     }
+}
+
+float ABAHUD::ColorSSIM_Internal(TArray<FColor> x, TArray<FColor> y)
+{
+    // Check if both input arrays have the same size
+    if (x.Num() != y.Num())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SSIM_Internal: Input arrays must have the same size."));
+        return 0.0f;
+    }
+
+    // Convert FColor arrays to grayscale FLinearColor arrays
+    TArray<float> GrayX_R, GrayX_G, GrayX_B;
+    TArray<float> GrayY_R, GrayY_G, GrayY_B;
+
+    for (int32 i = 0; i < x.Num(); ++i)
+    {
+        // Extract RGBA values from FColor
+        const FColor& ColorX = x[i];
+        const FColor& ColorY = y[i];
+
+        // Add to grayscale arrays
+        GrayX_R.Add(ColorX.R / 255.0f);
+        GrayX_G.Add(ColorX.G / 255.0f);
+        GrayX_B.Add(ColorX.B / 255.0f);
+
+        GrayY_R.Add(ColorY.R / 255.0f);
+        GrayY_G.Add(ColorY.G / 255.0f);
+        GrayY_B.Add(ColorY.B / 255.0f);
+    }
+
+    // Compute SSIM for each channel
+    float SSIM_R = SSIM_Internal(GrayX_R, GrayY_R);
+    float SSIM_G = SSIM_Internal(GrayX_G, GrayY_G);
+    float SSIM_B = SSIM_Internal(GrayX_B, GrayY_B);
+
+    // Calculate the average SSIM
+    float FinalSSIM = SSIM_R * SSIM_R_WEIGHT + SSIM_G * SSIM_G_WEIGHT + SSIM_B * SSIM_B_WEIGHT;
+
+    // reset SSIM values since we are done with this instance
+    _meanX = -1.0f;
+    _meanY = -1.0f;
+
+    return FinalSSIM;
+}
+
+float ABAHUD::SSIM_Internal(TArray<float> x, TArray<float> y)
+{
+    // Check values, might need to calculate for this instance first
+    if (_meanX <= -1.0f)
+    {
+        _meanX = 0.0f;
+        for (int i = 0; i < x.Num(); i++)
+        {
+            _meanX += x[i];
+        }
+        _meanX = _meanX / ((float)x.Num());
+        UE_LOG(LogTemp, Log, TEXT("Statistics: Mean X: %f"), _meanX);
+    }
+
+    if (_meanY <= -1.0f)
+    {
+        _meanY = 0.0f;
+        for (int i = 0; i < y.Num(); i++)
+        {
+            _meanY += y[i];
+        }
+        _meanY = _meanY / ((float)y.Num());
+    }
+
+    // Variance
+    if (_varianceX <= -1.0f)
+    {
+        _varianceX = 0.0f;
+        for (int i = 0; i < x.Num(); i++)
+        {
+            _varianceX += (x[i] - _meanX) * (x[i] - _meanX);
+        }
+        _varianceX = _varianceX / ((float)x.Num());
+    }
+
+    if (_varianceY <= -1.0f)
+    {
+        _varianceY = 0.0f;
+        for (int i = 0; i < y.Num(); i++)
+        {
+            _varianceY += (y[i] - _meanY) * (y[i] - _meanY);
+        }
+        _varianceY = _varianceY / ((float)y.Num());
+    }
+
+
+    return 0.0f;
 }
 
 void ABAHUD::SaveStatsToFile()

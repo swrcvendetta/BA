@@ -80,6 +80,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Measuring")
     void RecordMasterFrame();
 
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
+    float ColorSSIM(TArray<FColor> x, TArray<FColor> y);
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring")
+    float SSIM_R_WEIGHT = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring")
+    float SSIM_G_WEIGHT = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring")
+    float SSIM_B_WEIGHT = 1.0f;
+
 protected:
 
 	virtual void BeginPlay() override;
@@ -87,6 +99,10 @@ protected:
     virtual void BeginDestroy() override;
 
     virtual void ReleaseFrameGrabber();
+
+    virtual float ColorSSIM_Internal(TArray<FColor> x, TArray<FColor> y);
+
+    virtual float SSIM_Internal(TArray<float> x, TArray<float> y);
 
 private:
 
@@ -150,4 +166,11 @@ private:
 
     TArray<FColor> MasterFrame;
     FIntPoint MasterFrameBuffer;
+
+    // SSIM
+
+    float _meanX = -1.0f;
+    float _meanY = -1.0f;
+    float _varianceX = -1.0f;
+    float _varianceY = -1.0f;
 };
