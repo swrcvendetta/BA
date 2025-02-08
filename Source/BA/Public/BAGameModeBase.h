@@ -52,6 +52,9 @@ struct FSetting
 
 	UPROPERTY(BlueprintReadWrite, Category = "Settings")
 	FFrameStatData FrameStats;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Settings")
+	float Quality;
 };
 
 // Quality Settings

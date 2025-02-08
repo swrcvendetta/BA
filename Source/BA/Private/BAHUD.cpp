@@ -173,16 +173,17 @@ void ABAHUD::DrawHUD()
 
                 // Save the stat data as a CSV in the sub-folder
                 FString StatFilePath = SubFolderPath + TEXT("/Stats.csv");
-                FString StatOutput = TEXT("FrameID,DeltaTime,FrameTime,GameThreadTime,RHITTime,RenderThreadTime,GPUFrameTime\n");
+                FString StatOutput = TEXT("FrameID,DeltaTime,FrameTime,GameThreadTime,RHITTime,RenderThreadTime,GPUFrameTime,Quality\n");
                 StatOutput += FString::Printf(
-                    TEXT("%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n"),
+                    TEXT("%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n"),
                     Setting.FrameStats.FrameID,
                     Setting.FrameStats.DeltaTime,
                     Setting.FrameStats.FrameTime,
                     Setting.FrameStats.GameThreadTime,
                     Setting.FrameStats.RHITTime,
                     Setting.FrameStats.RenderThreadTime,
-                    Setting.FrameStats.GPUFrameTime
+                    Setting.FrameStats.GPUFrameTime,
+                    Setting.Quality
                 );
                 FFileHelper::SaveStringToFile(StatOutput, *StatFilePath);
                 UE_LOG(LogTemp, Log, TEXT("Saved stats for setting %s=%s at %s"), *Setting.Key, *Setting.Value, *StatFilePath);
@@ -334,6 +335,8 @@ void ABAHUD::StopRecording()
     bIsRecording = false;
     FrameGrabber->StopCapturingFrames();
     CapturedFrames = FrameGrabber->GetCapturedFrames();
+
+    // Capturing Settings and Frame
     if (bCaptureSetting && !bCaptureMasterFrame)
     {
         _bufferSizeX = CapturedFrames[0].BufferSize.X;
@@ -354,11 +357,15 @@ void ABAHUD::StopRecording()
         if (CapturedFrames.Num() > 1)
             index = CapturedFrames.Num() - 2;
         currentSetting.Frame = CapturedFrames[index].ColorBuffer;
+        // SSIM here
+        float ssim = ColorSSIM(MasterFrame, currentSetting.Frame);
+        currentSetting.Quality = ssim;
         Settings.Add(currentSetting);
         bCaptureSetting = false;
         OnRecordingStopped.Broadcast();
     }
 
+    // Capturing Masterframe
     if (bCaptureMasterFrame && !bCaptureSetting)
     {
         FIntPoint size = (CapturedFrames[0].BufferSize.X, CapturedFrames[0].BufferSize.Y);
@@ -497,13 +504,13 @@ float ABAHUD::ColorSSIM_Internal(TArray<FColor> x, TArray<FColor> y)
         const FColor& ColorY = y[i];
 
         // Add to grayscale arrays
-        GrayX_R.Add(ColorX.R / 255.0f);
-        GrayX_G.Add(ColorX.G / 255.0f);
-        GrayX_B.Add(ColorX.B / 255.0f);
+        GrayX_R.Add(FMath::Max(FMath::Min(ColorX.R, (uint8)255), (uint8)0));
+        GrayX_G.Add(FMath::Max(FMath::Min(ColorX.G, (uint8)255), (uint8)0));
+        GrayX_B.Add(FMath::Max(FMath::Min(ColorX.B, (uint8)255), (uint8)0));
 
-        GrayY_R.Add(ColorY.R / 255.0f);
-        GrayY_G.Add(ColorY.G / 255.0f);
-        GrayY_B.Add(ColorY.B / 255.0f);
+        GrayY_R.Add(FMath::Max(FMath::Min(ColorY.R, (uint8)255), (uint8)0));
+        GrayY_G.Add(FMath::Max(FMath::Min(ColorY.G, (uint8)255), (uint8)0));
+        GrayY_B.Add(FMath::Max(FMath::Min(ColorY.B, (uint8)255), (uint8)0));
     }
 
     // Compute SSIM for each channel
@@ -512,11 +519,8 @@ float ABAHUD::ColorSSIM_Internal(TArray<FColor> x, TArray<FColor> y)
     float SSIM_B = SSIM_Internal(GrayX_B, GrayY_B);
 
     // Calculate the average SSIM
-    float FinalSSIM = SSIM_R * SSIM_R_WEIGHT + SSIM_G * SSIM_G_WEIGHT + SSIM_B * SSIM_B_WEIGHT;
-
-    // reset SSIM values since we are done with this instance
-    _meanX = -1.0f;
-    _meanY = -1.0f;
+    //float FinalSSIM = SSIM_R * SSIM_R_WEIGHT + SSIM_G * SSIM_G_WEIGHT + SSIM_B * SSIM_B_WEIGHT;
+    float FinalSSIM = (SSIM_R + SSIM_G + SSIM_B) / 3.0f;
 
     return FinalSSIM;
 }
@@ -543,6 +547,7 @@ float ABAHUD::SSIM_Internal(TArray<float> x, TArray<float> y)
             _meanY += y[i];
         }
         _meanY = _meanY / ((float)y.Num());
+        UE_LOG(LogTemp, Log, TEXT("Statistics: Mean Y: %f"), _meanY);
     }
 
     // Variance
@@ -553,7 +558,8 @@ float ABAHUD::SSIM_Internal(TArray<float> x, TArray<float> y)
         {
             _varianceX += (x[i] - _meanX) * (x[i] - _meanX);
         }
-        _varianceX = _varianceX / ((float)x.Num());
+        _varianceX = _varianceX / ((float)x.Num() - 1.0f);
+        UE_LOG(LogTemp, Log, TEXT("Statistics: Variance X: %f"), _varianceX);
     }
 
     if (_varianceY <= -1.0f)
@@ -563,11 +569,34 @@ float ABAHUD::SSIM_Internal(TArray<float> x, TArray<float> y)
         {
             _varianceY += (y[i] - _meanY) * (y[i] - _meanY);
         }
-        _varianceY = _varianceY / ((float)y.Num());
+        _varianceY = _varianceY / ((float)y.Num() - 1.0f);
+        UE_LOG(LogTemp, Log, TEXT("Statistics: Variance Y: %f"), _varianceY);
     }
 
+    // co-variance
+    if (_covarianceXY <= -1.0f)
+    {
+        _covarianceXY = 0.0f;
+        for (int i = 0; i < x.Num(); i++)
+        {
+            _covarianceXY += (x[i] - _meanX) * (y[i] - _meanY);
+        }
+        _covarianceXY = _covarianceXY / ((float(x.Num()) - 1.0f));
+        UE_LOG(LogTemp, Log, TEXT("Statistics: CoVariance XY: %f"), _covarianceXY);
+    }
 
-    return 0.0f;
+    float ssim_value = ((2.0f * _meanX * _meanY + _c1) * (2.0f * _covarianceXY + _c2)) / ((FMath::Pow(_meanX, 2.0f) + FMath::Pow(_meanY, 2.0f) + _c1) * (_varianceX + _varianceY + _c2));
+    UE_LOG(LogTemp, Log, TEXT("Statistics: SSIM: %f"), ssim_value);
+
+
+    // reset SSIM values since we are done with this instance
+    _meanX = -1.0f;
+    _meanY = -1.0f;
+    _varianceX = -1.0f;
+    _varianceY = -1.0f;
+    _covarianceXY = -1.0f;
+
+    return ssim_value;
 }
 
 void ABAHUD::SaveStatsToFile()

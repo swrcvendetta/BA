@@ -84,13 +84,13 @@ public:
     float ColorSSIM(TArray<FColor> x, TArray<FColor> y);
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring")
-    float SSIM_R_WEIGHT = 1.0f;
+    float SSIM_R_WEIGHT = 0.3333333333333333f;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring")
-    float SSIM_G_WEIGHT = 1.0f;
+    float SSIM_G_WEIGHT = 0.3333333333333333f;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring")
-    float SSIM_B_WEIGHT = 1.0f;
+    float SSIM_B_WEIGHT = 0.3333333333333333f;
 
 protected:
 
@@ -167,10 +167,24 @@ private:
     TArray<FColor> MasterFrame;
     FIntPoint MasterFrameBuffer;
 
+public:
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring", meta = (ClampMin="0", ClampMax="1", UIMin = "0", UIMax="1"))
+    float k1 = 0.01f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring", meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+    float k2 = 0.03f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring", meta = (ClampMin = "0", ClampMax = "255", UIMin = "0", UIMax = "255"))
+    float L = 255.0f;
+
+private:
+
     // SSIM
 
     float _meanX = -1.0f;
     float _meanY = -1.0f;
     float _varianceX = -1.0f;
     float _varianceY = -1.0f;
+    float _covarianceXY = -1.0f;
+    float _c1 = (k1 * L) * (k1 * L);
+    float _c2 = (k2 * L) * (k2 * L);
 };
