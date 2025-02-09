@@ -225,6 +225,7 @@ void ABAHUD::DrawHUD()
     FFrameStatData_internal FrameData;
     FrameData.FrameID = CurrentFrameID;
     FrameData.DeltaTime = _World->GetDeltaSeconds();
+    FrameData.FrameTime = StatData->FrameTime;
     FrameData.GameThreadTime = StatData->GameThreadTime;
     FrameData.RHITTime = StatData->RHITTime;
     FrameData.RenderThreadTime = StatData->RenderThreadTime;
@@ -422,6 +423,35 @@ void ABAHUD::SaveAllData()
     //      generate a sub folder with sessionname+settingname+settingvalue
     //      write frame here
     //      write statdata her as csv
+}
+
+TArray<FSetting> ABAHUD::GetOptimalSettings()
+{
+    // Target frame time in milliseconds (1000ms / FPS)
+    float TargetFrameTime = 1000.0f / TargetFrameRate;
+
+    // Sort settings by quality in descending order (higher quality first)
+    Settings.Sort([](const FSetting& A, const FSetting& B)
+    {
+        return A.Quality > B.Quality; // Higher quality first
+    });
+
+    TArray<FSetting> OptimalSettings;
+    float CurrentTotalFrameTime = 0.0f;
+
+    // Step 1: Select the highest quality settings within the target frame time
+    for (const FSetting& Setting : Settings)
+    {
+        float SettingFrameTime = Setting.FrameStats.FrameTime; // Using FrameTime as the key metric
+
+        if (CurrentTotalFrameTime + SettingFrameTime <= TargetFrameTime)
+        {
+            OptimalSettings.Add(Setting);
+            CurrentTotalFrameTime += SettingFrameTime;
+        }
+    }
+
+    return OptimalSettings;
 }
 
 /*

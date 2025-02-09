@@ -63,8 +63,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Measuring")
     void SetMaxFrameAmount(int32 FrameAmount);
 
-    UFUNCTION(BlueprintCallable, Category = "Measuing")
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
     void SaveAllData();
+
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
+    TArray<FSetting> GetOptimalSettings();
+
+    // apply settings in BP I'd say
 
     /*
     UFUNCTION(BlueprintCallable, Category = "Measuring")
