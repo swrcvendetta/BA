@@ -124,6 +124,52 @@ public:
 		return InternalCategories;
 	}
 
+	// Expose the categories for Blueprint retrieval if needed
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	TArray<FSetting> GetAllSettingsAtQuality(const TArray<FCategory>& Categories, int32 Index) const
+	{
+		TArray<FSetting> Settings;
+
+		for (const FCategory& Category : Categories)
+		{
+			if (Category.bEnabled && Category.Qualities.IsValidIndex(Index))
+			{
+				Settings.Append(Category.Qualities[Index].Settings);
+			}
+		}
+
+		return Settings; // Returning by value is safe here
+	}
+
+	// Expose the categories for Blueprint retrieval if needed
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	TArray<FSetting> GetAllSettingsAtQualityFromCategory(const TArray<FCategory>& Categories, int32 QualityIndex, int32 CategoryIndex) const
+	{
+		TArray<FSetting> Settings;
+
+		// Prüfen, ob CategoryIndex gültig ist
+		if (!Categories.IsValidIndex(CategoryIndex))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Ungültiger CategoryIndex: %d"), CategoryIndex);
+			return Settings;
+		}
+
+		const FCategory& Category = Categories[CategoryIndex];
+
+		// Prüfen, ob die Qualität in der Kategorie existiert und die Kategorie aktiv ist
+		if (!Category.Qualities.IsValidIndex(QualityIndex) || !Category.bEnabled)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Ungültiger QualityIndex: %d oder Kategorie deaktiviert"), QualityIndex);
+			return Settings;
+		}
+
+		// Die Einstellungen der gewünschten Qualitätsstufe hinzufügen
+		const FQuality& Quality = Category.Qualities[QualityIndex];
+		Settings.Append(Quality.Settings);
+
+		return Settings;
+	}
+
 	/**
 	 * Enables/disables a category
 	 * Returns true if there was a category with the provided index, else false

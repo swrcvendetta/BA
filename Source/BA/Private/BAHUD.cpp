@@ -58,6 +58,7 @@ void ABAHUD::DrawHUD()
 
 
     // for saving
+    /*
     
     if (bIsSavingFrames && SavedFrameIndex < CapturedFrames.Num() && !bSaveAll)
     {
@@ -203,6 +204,7 @@ void ABAHUD::DrawHUD()
             Settings.Empty();
         }
     }
+    */
 
 
     // for recording
@@ -337,6 +339,8 @@ void ABAHUD::StopRecording()
     FrameGrabber->StopCapturingFrames();
     CapturedFrames = FrameGrabber->GetCapturedFrames();
 
+    /*
+
     // Capturing Settings and Frame
     if (bCaptureSetting && !bCaptureMasterFrame)
     {
@@ -375,6 +379,8 @@ void ABAHUD::StopRecording()
         bCaptureMasterFrame = false;
         OnRecordingMasterFrameStopped.Broadcast();
     }
+    */
+    OnRecordingMasterFrameStopped.Broadcast();
 
     // ----------
     //SetFrameRate(0.0f);
@@ -454,6 +460,24 @@ TArray<FSetting> ABAHUD::GetOptimalSettings()
     return OptimalSettings;
 }
 
+void ABAHUD::RecordingDataToMasterFrame()
+{
+    FIntPoint size = (CapturedFrames[0].BufferSize.X, CapturedFrames[0].BufferSize.Y);
+    MasterFrame = CapturedFrames.Last().ColorBuffer;
+    MasterFrameBuffer = CapturedFrames.Last().BufferSize;
+    //bCaptureMasterFrame = false;
+}
+
+void ABAHUD::RecordingDataToSetting(FString Key, FString Value)
+{
+    FSetting setting;
+    setting.Key = Key;
+    setting.Value = Value;
+    setting.Frame = CapturedFrames[CapturedFrames.Num() - 1].ColorBuffer;
+    setting.Quality = ColorSSIM(MasterFrame, setting.Frame);
+    Settings.Add(setting);
+}
+
 /*
 TArray<FColor>& ABAHUD::GetFrameAt(int32 Index)
 {
@@ -469,6 +493,7 @@ FFrameStatData ABAHUD::GetStatDataAt(int32 Index)
 void ABAHUD::RecordSetting(FString Setting, FString Value)
 {
     bCaptureSetting = true;
+    bCaptureQuality = false;
     bCaptureMasterFrame = false;
     prefix = Setting + TEXT("_") + Value;
     currentSetting.Key = Setting;
@@ -479,9 +504,22 @@ void ABAHUD::RecordSetting(FString Setting, FString Value)
     StartRecording();
 }
 
+void ABAHUD::RecordQuality(FString Category, FString Quality, TArray<FSetting> QualitySettings)
+{
+    bCaptureSetting = false;
+    bCaptureQuality = true;
+    bCaptureMasterFrame = false;
+    prefix = Category + TEXT("_") + Quality;
+    currentSetting.Key = Category;
+    currentSetting.Value = Quality;
+    currentSetting.Frame.Empty();
+    StartRecording();
+}
+
 void ABAHUD::RecordMasterFrame()
 {
     bCaptureSetting = false;
+    bCaptureQuality = false;
     bCaptureMasterFrame = true;
     StartRecording();
 }

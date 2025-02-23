@@ -11,20 +11,19 @@
 #include "GameFramework/Actor.h"
 #include "ImageCoreClasses.h"
 #include <BAGameModeBase.h>
-#include "BAHUD.generated.h"
+#include "RecordHUD.generated.h"
 
 class FFrameGrabber;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnFrameSaved, int32, Current, int32, Max);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingStarted);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingStopped);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingMasterFrameStopped);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FHUDOnRecordingStarted);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FHUDOnRecordingStopped);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FHUDOnRecordingDataToSettingFinished);
 
 /**
  * 
  */
 UCLASS()
-class BA_API ABAHUD : public AHUD
+class BA_API ARecordHUD : public AHUD
 {
 	GENERATED_BODY()
 	
@@ -33,20 +32,15 @@ class BA_API ABAHUD : public AHUD
 public:
 
     // The multicast event
-    UPROPERTY(BlueprintAssignable, Category = "Events")
-    FOnFrameSaved OnFrameSaved;
 
     UPROPERTY(BlueprintAssignable, Category = "Events")
-    FOnRecordingStarted OnRecordingStarted;
+    FHUDOnRecordingStarted HUDOnRecordingStarted;
 
     UPROPERTY(BlueprintAssignable, Category = "Events")
-    FOnRecordingStopped OnRecordingStopped;
+    FHUDOnRecordingStopped HUDOnRecordingStopped;
 
     UPROPERTY(BlueprintAssignable, Category = "Events")
-    FOnRecordingMasterFrameStopped OnRecordingMasterFrameStopped;
-
-	UFUNCTION(BlueprintCallable, Category = "Measuring")
-	bool RecordStats();
+    FHUDOnRecordingDataToSettingFinished HUDOnRecordingDataToSettingFinished;
 
     UFUNCTION(BlueprintCallable, Category = "Measuring")
     void StartRecording();
@@ -58,16 +52,11 @@ public:
     void SetTargetFrameRate(float FrameRate);
 
     UFUNCTION(BlueprintCallable, Category = "Measuring")
-    void SetFrameRate(float FrameRate);
-
-    UFUNCTION(BlueprintCallable, Category = "Measuring")
-    void SetMaxFrameAmount(int32 FrameAmount);
-
-    UFUNCTION(BlueprintCallable, Category = "Measuring")
-    void SaveAllData();
-
-    UFUNCTION(BlueprintCallable, Category = "Measuring")
-    TArray<FSetting> GetOptimalSettings();
+    void SetMaxFrameAmount(float FrameAmount)
+    {
+        if (FrameAmount > 0)
+            MaxFrameAmount = FrameAmount;
+    }
 
     UFUNCTION(BlueprintCallable, Category = "Measuring")
     void RecordingDataToMasterFrame();
@@ -75,27 +64,20 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Measuring")
     void RecordingDataToSetting(FString Key, FString Value);
 
-    // apply settings in BP I'd say
-
-    /*
     UFUNCTION(BlueprintCallable, Category = "Measuring")
-    TArray<FColor>& GetFrameAt(int32 Index);
-
-    UFUNCTION(BlueprintCallable, Category = "Measuring")
-    FFrameStatData GetStatDataAt(int32 Index);
-    */
-
-    UFUNCTION(BlueprintCallable, Category = "Measuring")
-    void RecordSetting(FString Setting, FString Value);
-
-    UFUNCTION(BlueprintCallable, Category = "Measuring")
-    void RecordQuality(FString Category, FString Quality, TArray<FSetting> QualitySettings);
-
-    UFUNCTION(BlueprintCallable, Category = "Measuring")
-    void RecordMasterFrame();
+    void RecordingDataToOptimizedFrame();
 
     UFUNCTION(BlueprintCallable, Category = "Measuring")
     float ColorSSIM(TArray<FColor> x, TArray<FColor> y);
+
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
+    void WriteAllData();
+
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
+    void ClearData();
+
+    UFUNCTION(BlueprintCallable, Category = "Measuring")
+    TArray<FSetting> GetOptimizedSettings();
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Measuring")
     float SSIM_R_WEIGHT = 0.3333333333333333f;
@@ -142,9 +124,6 @@ private:
     FString CurrentSessionName;
     FString prefix;
 
-    void SaveStatsToFile();
-    void SaveRenderSettingsToFile();
-
     FString GenerateSessionName() const;
 
     float TargetFrameRate = 30.0f;
@@ -154,9 +133,6 @@ private:
     TSharedPtr<FFrameGrabber> FrameGrabber;
     TArray<FCapturedFrameData> CapturedFrames;
 
-    void SchreibDenScheis();
-
-    bool bIsSavingFrames = false;
     int32 SavedFrameIndex = 0;
 
 public:
@@ -170,17 +146,14 @@ private:
     TArray<FSetting> Settings;
     FSetting currentSetting;
 
-    bool bCaptureSetting = false;
-    bool bCaptureQuality = false;
-    bool bCaptureMasterFrame = false;
-
-    bool bSaveAll = false;
     FString _currentSessionName;
     int32 _bufferSizeX;
     int32 _bufferSizeY;
 
     TArray<FColor> MasterFrame;
     FIntPoint MasterFrameBuffer;
+
+    FSetting OptimizedData;
 
 public:
 
